@@ -1,16 +1,19 @@
 {
-  "name": "hand-cricket-server",
+  "name": "handcricket-multiplayer",
   "version": "1.0.0",
-  "description": "Multiplayer WebSocket backend for Hand Cricket game",
+  "description": "Online Multiplayer Hand Cricket Game - Team, 1v1, Tournament Modes",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "keywords": ["hand-cricket", "multiplayer", "websocket", "render"],
-  "author": "Your Name",
+  "author": "Vignesh S",
   "license": "MIT",
   "dependencies": {
+    "express": "^4.18.4",
     "uuid": "^9.0.0",
-    "ws": "^8.16.0"
+    "ws": "^8.13.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
   }
 }
