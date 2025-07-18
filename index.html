@@ -24,13 +24,24 @@
   <div id="createRoomScreen" class="hidden w-full max-w-md space-y-4">
     <h2 class="text-xl font-semibold text-green-400">Create Game Room</h2>
 
+    <!-- Player Name Reused -->
+    <!-- Game Mode -->
+    <label class="text-white block">Select Game Mode</label>
     <select id="gameMode" class="w-full p-2 bg-gray-800 border border-green-400 rounded">
       <option value="1v1">1 vs 1</option>
-      <option value="team">Team vs Team</option>
-      <option value="tournament">Tournament</option>
+      <option value="2v2">2 vs 2</option>
+      <option value="3v3">3 vs 3</option>
+      <option value="4v4">4 vs 4</option>
+      <option value="tournament-knockout">Tournament (Knockout)</option>
+      <option value="tournament-league">Tournament (League)</option>
     </select>
 
-   <select id="overs"></select>
+    <!-- Overs Dropdown -->
+    <label for="oversSelect" class="text-white block mt-4">Select Overs</label>
+    <select id="oversSelect" class="w-full mt-1 p-2 rounded text-black">
+      <!-- JS will populate -->
+    </select>
+
     <button onclick="createRoom()" class="w-full p-3 bg-green-600 rounded hover:bg-green-700">Create Room</button>
     <button onclick="backToHome()" class="w-full p-2 text-sm text-gray-300 hover:text-white">← Back</button>
   </div>
@@ -52,7 +63,7 @@
     <div id="roomCodeDisplay" class="text-sm text-gray-300">Room Code: <span class="font-mono" id="roomCodeText"></span></div>
 
     <div id="playerList" class="bg-gray-800 p-4 rounded border border-yellow-500 space-y-2">
-      <!-- Player names and team selections -->
+      <!-- Player list will be rendered -->
     </div>
 
     <div id="captainSelector" class="hidden space-y-2">
@@ -62,34 +73,31 @@
       <select id="captainTeamB" class="w-full bg-gray-700 rounded p-2"></select>
     </div>
 
-    <button onclick="startGame()" id="startGameBtn" class="w-full p-3 bg-yellow-500 rounded hover:bg-yellow-600">Start Game</button>
+    <button onclick="startGame()" id="startGameBtn" class="w-full p-3 bg-yellow-500 rounded hover:bg-yellow-600 hidden">Start Game</button>
   </div>
 
   <!-- 🔷 GAME SCREEN -->
   <div id="gameScreen" class="hidden w-full max-w-3xl">
-    <!-- Inside #gameScreen -->
-<div id="tossSection" class="space-y-4 text-center"></div>
+    <div id="tossSection" class="space-y-4 text-center"></div>
 
-<div id="turnSection" class="space-y-2 hidden">
-  <h3 class="text-xl font-bold" id="currentRoleText"></h3>
-  <p id="gamePrompt" class="text-sm text-gray-300"></p>
-  <div class="flex justify-center gap-2">
-    ${[1, 2, 3, 4, 5, 6].map(n => `<button onclick="selectNumber(${n})" class="bg-blue-600 px-4 py-2 rounded">${n}</button>`).join('')}
-  </div>
-</div>
+    <div id="turnSection" class="space-y-2 hidden">
+      <h3 class="text-xl font-bold" id="currentRoleText"></h3>
+      <p id="gamePrompt" class="text-sm text-gray-300"></p>
+      <div class="flex justify-center gap-2" id="numberButtons">
+        <!-- Number buttons will be created in client.js -->
+      </div>
+    </div>
 
-<div id="gameLog" class="mt-4 text-sm space-y-1"></div>
-
-    <!-- Toss, gameplay, scoreboards, etc. will appear here -->
+    <div id="gameLog" class="mt-4 text-sm space-y-1"></div>
   </div>
 
-  <!-- 🔷 CHAT + FEEDBACK -->
+  <!-- 🔷 CHAT BOX -->
   <div id="chatBox" class="hidden fixed bottom-0 left-0 right-0 bg-black/80 p-2">
     <input type="text" id="chatInput" placeholder="Type a message..."
       class="w-full p-2 bg-gray-700 text-white rounded" />
   </div>
 
-  <!-- 🔷 SCRIPTS -->
+  <!-- 🔷 BASIC SCRIPT HOOKS -->
   <script>
     function showCreateRoom() {
       document.getElementById("homeScreen").classList.add("hidden");
@@ -106,17 +114,13 @@
       document.getElementById("homeScreen").classList.remove("hidden");
     }
 
-    function createRoom() {
-      // Placeholder (handled in client.js)
-    }
-
-    function joinRoom() {
-      // Placeholder (handled in client.js)
-    }
-
-    function startGame() {
-      // Placeholder (handled in client.js)
-    }
+    // Placeholder - actual logic in client.js
+    function createRoom() {}
+    function joinRoom() {}
+    function startGame() {}
   </script>
+
+  <!-- ✅ Load client.js -->
+  <script src="client.js"></script>
 </body>
 </html>
