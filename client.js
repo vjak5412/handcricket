@@ -170,4 +170,254 @@ chatInput.addEventListener("keydown", (e) => {
     }));
     chatInput.value = "";
   }
+}); // 📡 WebSocket connection to backend (update URL as needed)
+const socket = new WebSocket("wss://handcricket-gbz6.onrender.com");
+
+// 🔒 Game State Variables
+let playerName = "";
+let playerId = "";
+let roomCode = "";
+let isAdmin = false;
+let gameMode = "";
+let overs = 1;
+let players = [];
+let isMyTurn = false;
+
+// 🎮 CREATE ROOM
+function createRoom() {
+  playerName = document.getElementById("playerName").value.trim();
+  gameMode = document.getElementById("gameMode").value;
+  overs = parseInt(document.getElementById("oversSelect").value);
+
+  if (!playerName || !gameMode || !overs) return alert("Please fill all fields.");
+
+  socket.send(JSON.stringify({
+    type: "createRoom",
+    name: playerName,
+    gameMode,
+    overs
+  }));
+}
+
+// 🔌 JOIN ROOM
+function joinRoom() {
+  playerName = document.getElementById("playerName").value.trim();
+  roomCode = document.getElementById("joinRoomCode").value.trim().toUpperCase();
+  if (!playerName || !roomCode) return alert("Enter name and room code");
+
+  socket.send(JSON.stringify({
+    type: "joinRoom",
+    name: playerName,
+    roomCode
+  }));
+}
+
+// 🔃 Socket Listener
+socket.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  switch (data.type) {
+    case "roomCreated":
+      handleRoomCreated(data);
+      break;
+    case "joinedRoom":
+      handleRoomJoined(data);
+      break;
+    case "updatePlayers":
+      players = data.players;
+      updatePlayerList();
+      break;
+    case "startGame":
+      document.getElementById("lobbyScreen").classList.add("hidden");
+      document.getElementById("gameScreen").classList.remove("hidden");
+      break;
+    case "toss":
+      showTossScreen(data);
+      break;
+    case "yourTurn":
+      handleYourTurn(data);
+      break;
+    case "turnResult":
+      updateGameLog(data.message);
+      break;
+    case "nextBatter":
+    case "nextBowler":
+      showCaptainChoice(data);
+      break;
+    case "endInnings":
+      updateGameLog("\uD83C\uDFC1 " + data.message);
+      break;
+    case "gameOver":
+      updateGameLog("\uD83C\uDFC6 " + data.message);
+      break;
+    case "chat":
+      addToChat(data.message);
+      break;
+    case "error":
+      alert(data.message);
+      break;
+  }
+};
+
+function handleRoomCreated(data) {
+  isAdmin = true;
+  playerId = data.playerId;
+  roomCode = data.roomCode;
+  players = data.players;
+  showLobby();
+}
+
+function handleRoomJoined(data) {
+  isAdmin = false;
+  playerId = data.playerId;
+  roomCode = data.roomCode;
+  players = data.players;
+  showLobby();
+}
+
+// 🛋️ Lobby UI
+function showLobby() {
+  hideAllScreens();
+  document.getElementById("lobbyScreen").classList.remove("hidden");
+  document.getElementById("roomCodeText").textContent = roomCode;
+  document.getElementById("startGameBtn").classList.toggle("hidden", !isAdmin);
+  updatePlayerList();
+}
+
+function updatePlayerList() {
+  const list = document.getElementById("playerList");
+  list.innerHTML = "";
+  players.forEach(p => {
+    const el = document.createElement("div");
+    el.textContent = `${p.name} ${p.id === playerId ? '(You)' : ''}`;
+    el.className = "p-2 bg-gray-700 rounded";
+    list.appendChild(el);
+
+    if (isAdmin) {
+      ["captainTeamA", "captainTeamB"].forEach(selId => {
+        const sel = document.getElementById(selId);
+        if (![...sel.options].some(opt => opt.value === p.id)) {
+          const opt = document.createElement("option");
+          opt.value = p.id;
+          opt.text = p.name;
+          sel.appendChild(opt);
+        }
+      });
+    }
+  });
+}
+
+function hideAllScreens() {
+  document.querySelectorAll("div[id$='Screen']").forEach(div => div.classList.add("hidden"));
+}
+
+// 🎬 Start Game
+function startGame() {
+  const captainA = document.getElementById("captainTeamA").value;
+  const captainB = document.getElementById("captainTeamB").value;
+  if (!captainA || !captainB) return alert("Select captains for both teams.");
+
+  socket.send(JSON.stringify({
+    type: "startGame",
+    roomCode,
+    captainA,
+    captainB
+  }));
+}
+
+// 🪙 Toss
+function showTossScreen(data) {
+  const el = document.getElementById("tossSection");
+  el.innerHTML = `<h2 class='text-xl font-bold'>\uD83C\uDFB2 Toss Time</h2><p>${data.message}</p>`;
+}
+
+// 🏀 Gameplay Turn
+function handleYourTurn(data) {
+  isMyTurn = true;
+  const turnUI = document.getElementById("turnSection");
+  turnUI.classList.remove("hidden");
+  document.getElementById("currentRoleText").textContent = data.role === "bat" ? "You're Batting!" : "You're Bowling!";
+  document.getElementById("gamePrompt").textContent = "Choose a number (1–6)";
+}
+
+function selectNumber(n) {
+  if (!isMyTurn) return;
+  socket.send(JSON.stringify({
+    type: "turnChoice",
+    roomCode,
+    number: n
+  }));
+  isMyTurn = false;
+  document.getElementById("turnSection").classList.add("hidden");
+}
+
+// 📄 Game Log
+function updateGameLog(msg) {
+  const log = document.getElementById("gameLog");
+  const div = document.createElement("div");
+  div.textContent = msg;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+// 🧑‍👨 Captain Selection
+function showCaptainChoice(data) {
+  const container = document.createElement("div");
+  container.className = "flex gap-2 justify-center mt-2";
+
+  data.options.forEach(p => {
+    const btn = document.createElement("button");
+    btn.textContent = p.name;
+    btn.className = "bg-purple-600 px-3 py-1 rounded";
+    btn.onclick = () => {
+      socket.send(JSON.stringify({
+        type: data.type,
+        roomCode,
+        selectedId: p.id
+      }));
+      document.getElementById("turnSection").classList.add("hidden");
+    };
+    container.appendChild(btn);
+  });
+
+  const turnUI = document.getElementById("turnSection");
+  turnUI.innerHTML = "<h3 class='text-xl font-bold'>Captain Decision</h3><p id='gamePrompt'>Choose player:</p>";
+  turnUI.appendChild(container);
+  turnUI.classList.remove("hidden");
+}
+
+// 💬 Chat
+const chatInput = document.getElementById("chatInput");
+chatInput?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    const message = e.target.value.trim();
+    if (message) {
+      socket.send(JSON.stringify({
+        type: "chat",
+        roomCode,
+        message,
+        name: playerName
+      }));
+      e.target.value = "";
+    }
+  }
 });
+
+function addToChat(msg) {
+  const chatBox = document.getElementById("chatBox");
+  chatBox.classList.remove("hidden");
+  chatBox.innerHTML += `<div class="text-sm">${msg}</div>`;
+}
+
+// 📊 Overs dropdown rendering
+window.addEventListener("DOMContentLoaded", () => {
+  const oversDropdown = document.getElementById("oversSelect");
+  if (oversDropdown) {
+    for (let i = 1; i <= 20; i++) {
+      const opt = document.createElement("option");
+      opt.value = i;
+      opt.textContent = `${i} Over${i > 1 ? 's' : ''}`;
+      oversDropdown.appendChild(opt);
+    }
+  }
+});
+
