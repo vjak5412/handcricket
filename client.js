@@ -1,5 +1,7 @@
-const socket = new WebSocket("wss://handcricket-gbz6.onrender.com"); // Replace with your backend URL
+// ✅ WebSocket connection
+const socket = new WebSocket("wss://handcricket-gbz6.onrender.com");
 
+// ✅ Game state variables
 let playerName = "";
 let roomCode = "";
 let playerId = "";
@@ -9,7 +11,20 @@ let overs = 1;
 let players = [];
 let isMyTurn = false;
 
-// 🎮 JOIN / CREATE ROOM
+// ✅ DOM ready: populate overs dropdown and setup
+window.addEventListener("DOMContentLoaded", () => {
+  const oversDropdown = document.getElementById("oversSelect");
+  if (oversDropdown) {
+    for (let i = 1; i <= 20; i++) {
+      const option = document.createElement("option");
+      option.value = i;
+      option.textContent = `${i} Over${i > 1 ? 's' : ''}`;
+      oversDropdown.appendChild(option);
+    }
+  }
+});
+
+// ✅ Create Room
 function createRoom() {
   playerName = document.getElementById("playerName").value.trim();
   gameMode = document.getElementById("gameMode").value;
@@ -20,14 +35,16 @@ function createRoom() {
     return;
   }
 
-  socket.send(JSON.stringify({
+  const msg = {
     type: "createRoom",
     name: playerName,
     gameMode,
     overs,
-  }));
+  };
+  socket.send(JSON.stringify(msg));
 }
 
+// ✅ Join Room
 function joinRoom() {
   playerName = document.getElementById("playerName").value.trim();
   roomCode = document.getElementById("joinRoomCode").value.trim();
@@ -37,89 +54,78 @@ function joinRoom() {
     return;
   }
 
-  socket.send(JSON.stringify({
+  const msg = {
     type: "joinRoom",
     name: playerName,
     roomCode,
-  }));
+  };
+  socket.send(JSON.stringify(msg));
 }
 
-// 🧠 SOCKET LISTENER
+// ✅ Socket message listener
 socket.onmessage = function (event) {
   const data = JSON.parse(event.data);
   switch (data.type) {
     case "roomCreated":
-      roomCode = data.roomCode;
-      isAdmin = true;
-      playerId = data.playerId;
-      players = data.players;
-      showLobby();
+      handleRoomJoin(data, true);
       break;
-
     case "joinedRoom":
-      roomCode = data.roomCode;
-      isAdmin = false;
-      playerId = data.playerId;
-      players = data.players;
-      showLobby();
+      handleRoomJoin(data, false);
       break;
-
     case "updatePlayers":
       players = data.players;
       updatePlayerList();
       break;
-
     case "startGame":
       document.getElementById("lobbyScreen").classList.add("hidden");
       document.getElementById("gameScreen").classList.remove("hidden");
       break;
-
     case "toss":
       showTossScreen(data);
       break;
-
     case "yourTurn":
       handleYourTurn(data);
       break;
-
     case "turnResult":
       updateGameLog(data);
       break;
-
     case "nextBowler":
     case "nextBatter":
       showCaptainChoice(data);
       break;
-
     case "endInnings":
       handleInningsEnd(data);
       break;
-
     case "gameOver":
       showWinner(data);
       break;
-
     case "chat":
       addToChat(data.message);
       break;
-
     case "error":
       alert(data.message);
       break;
   }
 };
 
-// 🏁 LOBBY UI
+function handleRoomJoin(data, admin) {
+  roomCode = data.roomCode;
+  isAdmin = admin;
+  playerId = data.playerId;
+  players = data.players;
+  showLobby();
+}
+
+// ✅ Lobby UI
 function showLobby() {
   document.querySelectorAll("div[id$='Screen']").forEach(div => div.classList.add("hidden"));
   document.getElementById("lobbyScreen").classList.remove("hidden");
   document.getElementById("roomCodeText").textContent = roomCode;
 
   if (isAdmin) {
-    document.getElementById("captainSelector")?.classList.remove("hidden");
-    document.getElementById("startGameBtn")?.classList.remove("hidden");
+    document.getElementById("captainSelector").classList.remove("hidden");
+    document.getElementById("startGameBtn").classList.remove("hidden");
   }
-
   updatePlayerList();
 }
 
@@ -133,11 +139,11 @@ function updatePlayerList() {
     div.textContent = `👤 ${p.name} ${p.id === playerId ? "(You)" : ""}`;
     container.appendChild(div);
 
-    // Populate captain dropdowns if admin
+    // Captains selector
     if (isAdmin) {
       ["captainTeamA", "captainTeamB"].forEach(selId => {
         const sel = document.getElementById(selId);
-        if (sel && ![...sel.options].some(opt => opt.value === p.id)) {
+        if (![...sel.options].some(opt => opt.value === p.id)) {
           const opt = document.createElement("option");
           opt.value = p.id;
           opt.text = p.name;
@@ -148,25 +154,22 @@ function updatePlayerList() {
   });
 }
 
-// 🚀 Start Game
 function startGame() {
   const captainA = document.getElementById("captainTeamA").value;
   const captainB = document.getElementById("captainTeamB").value;
 
-  if (!captainA || !captainB) {
-    alert("Select captains for both teams.");
-    return;
-  }
+  if (!captainA || !captainB) return alert("Select captains for both teams.");
 
-  socket.send(JSON.stringify({
+  const msg = {
     type: "startGame",
     roomCode,
     captainA,
     captainB,
-  }));
+  };
+
+  socket.send(JSON.stringify(msg));
 }
 
-// 🧿 TOSS UI
 function showTossScreen(data) {
   const tossDiv = document.getElementById("tossSection");
   tossDiv.innerHTML = `
@@ -175,25 +178,27 @@ function showTossScreen(data) {
   `;
 }
 
-// 🎯 TURN LOGIC
 function handleYourTurn(data) {
   isMyTurn = true;
   const turnSection = document.getElementById("turnSection");
   turnSection.classList.remove("hidden");
-
   document.getElementById("currentRoleText").textContent = data.role === "bat" ? "You're Batting!" : "You're Bowling!";
   document.getElementById("gamePrompt").textContent = "Pick a number (1–6)";
+
+  const numContainer = document.getElementById("numberButtons");
+  numContainer.innerHTML = "";
+  [1, 2, 3, 4, 5, 6].forEach(n => {
+    const btn = document.createElement("button");
+    btn.className = "bg-blue-600 px-4 py-2 rounded hover:bg-blue-700";
+    btn.textContent = n;
+    btn.onclick = () => selectNumber(n);
+    numContainer.appendChild(btn);
+  });
 }
 
 function selectNumber(n) {
   if (!isMyTurn) return;
-
-  socket.send(JSON.stringify({
-    type: "turnChoice",
-    roomCode,
-    number: n,
-  }));
-
+  socket.send(JSON.stringify({ type: "turnChoice", roomCode, number: n }));
   isMyTurn = false;
   document.getElementById("turnSection").classList.add("hidden");
 }
@@ -206,35 +211,27 @@ function updateGameLog(data) {
   log.scrollTop = log.scrollHeight;
 }
 
-// 🧑‍✈️ CAPTAIN DECISION
 function showCaptainChoice(data) {
   const turnSection = document.getElementById("turnSection");
   turnSection.classList.remove("hidden");
   document.getElementById("currentRoleText").textContent = "🧑‍✈️ Captain Decision";
   document.getElementById("gamePrompt").innerHTML = `Choose the next ${data.type === "nextBowler" ? "Bowler" : "Batter"}:`;
 
-  const container = document.createElement("div");
-  container.className = "flex gap-2 justify-center mt-2";
+  const container = document.getElementById("numberButtons");
+  container.innerHTML = "";
 
   data.options.forEach(player => {
     const btn = document.createElement("button");
     btn.className = "bg-purple-600 px-3 py-1 rounded";
     btn.textContent = player.name;
     btn.onclick = () => {
-      socket.send(JSON.stringify({
-        type: data.type,
-        roomCode,
-        selectedId: player.id,
-      }));
+      socket.send(JSON.stringify({ type: data.type, roomCode, selectedId: player.id }));
       turnSection.classList.add("hidden");
     };
     container.appendChild(btn);
   });
-
-  turnSection.appendChild(container);
 }
 
-// ⏹ INNINGS END
 function handleInningsEnd(data) {
   const log = document.getElementById("gameLog");
   const entry = document.createElement("div");
@@ -242,13 +239,11 @@ function handleInningsEnd(data) {
   log.appendChild(entry);
 }
 
-// 🏆 SHOW WINNER
 function showWinner(data) {
   document.getElementById("turnSection").classList.add("hidden");
   document.getElementById("gameLog").innerHTML += `<div class="text-xl font-bold text-green-400 mt-4">${data.message}</div>`;
 }
 
-// 💬 CHAT
 document.getElementById("chatInput")?.addEventListener("keydown", function (e) {
   if (e.key === "Enter") {
     const message = e.target.value.trim();
@@ -264,16 +259,3 @@ function addToChat(msg) {
   chatBox.classList.remove("hidden");
   chatBox.innerHTML += `<div class="text-sm">${msg}</div>`;
 }
-
-// 🕹️ OVERS DROPDOWN RENDERING (DYNAMIC)
-document.addEventListener("DOMContentLoaded", () => {
-  const oversDropdown = document.getElementById("oversSelect");
-  if (oversDropdown) {
-    for (let i = 1; i <= 20; i++) {
-      const option = document.createElement("option");
-      option.value = i;
-      option.textContent = `${i} Over${i > 1 ? 's' : ''}`;
-      oversDropdown.appendChild(option);
-    }
-  }
-});
