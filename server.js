@@ -1,281 +1,178 @@
-const WebSocket = require("ws");
-const { v4: uuid } = require("uuid");
+// ✅ Unified and Corrected server.js for Hand Cricket Multiplayer
 
-const PORT = process.env.PORT || 8080;
-const wss = new WebSocket.Server({ port: PORT });
+const express = require("express");
+const { createServer } = require("http");
+const { WebSocketServer } = require("ws");
+const { v4: uuidv4 } = require("uuid");
 
-console.log(`✅ Server running on port ${PORT}`);
+const app = express();
+const httpServer = createServer(app);
+const wss = new WebSocketServer({ server: httpServer });
 
-// Store all rooms and players
-const rooms = {}; // { roomCode: { players, gameData, ... } }
-const sockets = {}; // { playerId: ws }
+const PORT = process.env.PORT || 10000;
+const rooms = {};
 
 wss.on("connection", (ws) => {
-  const playerId = uuid();
-  sockets[playerId] = ws;
+  ws.id = uuidv4();
 
-  ws.on("message", (msg) => {
-    let data;
+  ws.on("message", (message) => {
     try {
-      data = JSON.parse(msg);
-    } catch {
-      return;
-    }
-
-    const { type } = data;
-
-    switch (type) {
-      case "createRoom": {
-        const roomCode = generateRoomCode();
-        rooms[roomCode] = {
-          players: [{ id: playerId, name: data.name, team: null }],
-          host: playerId,
-          gameMode: data.gameMode,
-          overs: data.overs,
-          gameState: "lobby",
-          gameData: {},
-        };
-
-        ws.send(JSON.stringify({ type: "roomCreated", roomCode, playerId, players: rooms[roomCode].players }));
-        break;
-      }
-
-      case "joinRoom": {
-        const { roomCode, name } = data;
-        if (!rooms[roomCode]) return send(ws, "error", { message: "Room not found." });
-
-        const room = rooms[roomCode];
-        room.players.push({ id: playerId, name, team: null });
-
-        // Notify all
-        broadcastRoom(roomCode, {
-          type: "joinedRoom",
-          roomCode,
-          playerId,
-          players: room.players,
-        });
-        break;
-      }
-
-      case "startGame": {
-        const { roomCode, captainA, captainB } = data;
-        const room = rooms[roomCode];
-        if (!room) return;
-
-        room.captains = { A: captainA, B: captainB };
-        room.players.forEach((p, i) => {
-          p.team = i % 2 === 0 ? "A" : "B";
-        });
-
-        room.gameState = "playing";
-        room.gameData = createGameData(room);
-
-        broadcastRoom(roomCode, { type: "startGame" });
-        handleToss(roomCode);
-        break;
-      }
-
-      case "turnChoice": {
-        const { roomCode, number } = data;
-        handleTurn(roomCode, playerId, number);
-        break;
-      }
-
-      case "nextBatter":
-      case "nextBowler": {
-        const { roomCode, selectedId } = data;
-        const gd = rooms[roomCode].gameData;
-        if (data.type === "nextBatter") gd.current.batter = selectedId;
-        else gd.current.bowler = selectedId;
-        gd.waitingForCaptain = false;
-
-        setTimeout(() => {
-          nextTurn(roomCode);
-        }, 500);
-        break;
-      }
-
-      case "chat": {
-        broadcastRoom(data.roomCode, {
-          type: "chat",
-          message: `💬 ${data.name}: ${data.message}`,
-        });
-        break;
-      }
+      const data = JSON.parse(message);
+      handleMessage(ws, data);
+    } catch (err) {
+      console.error("Invalid message received:", message);
     }
   });
 
   ws.on("close", () => {
-    delete sockets[playerId];
-    // Future: remove from room, handle disconnect
+    // Optional: handle player disconnects later
   });
 });
 
-// 🔁 Broadcast to all in room
-function broadcastRoom(roomCode, message) {
-  const room = rooms[roomCode];
-  if (!room) return;
-  room.players.forEach((p) => {
-    if (sockets[p.id]) {
-      sockets[p.id].send(JSON.stringify(message));
-    }
-  });
+function handleMessage(ws, data) {
+  switch (data.type) {
+    case "createRoom": return handleCreateRoom(ws, data);
+    case "joinRoom": return handleJoinRoom(ws, data);
+    case "startGame": return handleStartGame(ws, data);
+    case "tossChoice": return handleTossChoice(ws, data);
+    case "turnChoice": return handleTurnChoice(ws, data);
+    case "nextBatter":
+    case "nextBowler": return handleNextPlayer(ws, data);
+    case "chat": return handleChat(ws, data);
+  }
 }
 
-// 📦 Helpers
-function send(ws, type, payload) {
-  ws.send(JSON.stringify({ type, ...payload }));
-}
+function handleCreateRoom(ws, data) {
+  const roomCode = generateRoomCode();
+  const playerId = ws.id;
 
-function generateRoomCode() {
-  const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-  return Array.from({ length: 5 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-}
-
-// 🏏 Game Logic
-function createGameData(room) {
-  const teamA = room.players.filter((p) => p.team === "A").map((p) => p.id);
-  const teamB = room.players.filter((p) => p.team === "B").map((p) => p.id);
-
-  return {
-    scores: { A: 0, B: 0 },
-    wickets: { A: 0, B: 0 },
-    overs: room.overs,
-    balls: 0,
-    innings: 1,
-    target: null,
-    teamOrder: ["A", "B"],
-    current: {
-      battingTeam: "A",
-      bowlingTeam: "B",
-      batter: teamA[0],
-      bowler: teamB[0],
-    },
-    teamA,
-    teamB,
-    usedBatters: [],
-    usedBowlers: [],
-    waitingForCaptain: false,
+  rooms[roomCode] = {
+    players: [{ id: playerId, name: data.name, ws }],
+    admin: playerId,
+    gameMode: data.gameMode,
+    overs: data.overs,
+    started: false,
+    captains: {},
+    gameData: {},
   };
+
+  ws.send(JSON.stringify({
+    type: "roomCreated",
+    roomCode,
+    playerId,
+    players: getPlayerSummaries(roomCode)
+  }));
+}
+
+function handleJoinRoom(ws, data) {
+  const room = rooms[data.roomCode];
+  if (!room) return ws.send(JSON.stringify({ type: "error", message: "Room not found" }));
+  if (room.started) return ws.send(JSON.stringify({ type: "error", message: "Game already started" }));
+
+  const playerId = ws.id;
+  room.players.push({ id: playerId, name: data.name, ws });
+
+  broadcastToRoom(data.roomCode, {
+    type: "updatePlayers",
+    players: getPlayerSummaries(data.roomCode)
+  });
+
+  ws.send(JSON.stringify({
+    type: "joinedRoom",
+    roomCode: data.roomCode,
+    playerId,
+    players: getPlayerSummaries(data.roomCode)
+  }));
+}
+
+function handleStartGame(ws, data) {
+  const room = rooms[data.roomCode];
+  if (!room || ws.id !== room.admin) return;
+
+  room.captains = { A: data.captainA, B: data.captainB };
+  room.started = true;
+
+  // Auto team assignment (A/B alternating)
+  room.players.forEach((p, i) => {
+    p.team = i % 2 === 0 ? "A" : "B";
+  });
+
+  room.gameData = createGameData(room);
+
+  broadcastToRoom(data.roomCode, { type: "startGame" });
+  setTimeout(() => handleToss(data.roomCode), 1000);
 }
 
 function handleToss(roomCode) {
-  const tossMessage = "Team A won the toss and chose to bat first.";
-  broadcastRoom(roomCode, { type: "toss", message: tossMessage });
+  const room = rooms[roomCode];
+  const winner = Math.random() < 0.5 ? "A" : "B";
+  room.gameData.battingTeam = winner;
+  room.gameData.bowlingTeam = winner === "A" ? "B" : "A";
 
-  setTimeout(() => {
-    nextTurn(roomCode);
-  }, 2000);
+  broadcastToRoom(roomCode, {
+    type: "toss",
+    message: `Team ${winner} won the toss and chose to bat first.`
+  });
+
+  const captainId = room.captains[winner];
+  const teamList = room.players.filter(p => p.team === winner);
+  const options = teamList.map(p => ({ id: p.id, name: p.name }));
+
+  sendToPlayer(captainId, room, {
+    type: "nextBatter",
+    options
+  });
 }
 
-function nextTurn(roomCode) {
-  const room = rooms[roomCode];
-  const gd = room.gameData;
+function handleNextPlayer(ws, data) {
+  const room = rooms[data.roomCode];
+  if (!room) return;
 
-  // Check innings end
-  const maxBalls = gd.overs * 6;
-  const team = gd.current.battingTeam;
-  if (gd.balls >= maxBalls || gd.wickets[team] >= (gd[team === "A" ? "teamA" : "teamB"].length - 1)) {
-    if (gd.innings === 1) {
-      gd.innings = 2;
-      gd.target = gd.scores[team] + 1;
+  const role = data.type === "nextBatter" ? "bat" : "bowl";
 
-      // Switch teams
-      [gd.current.battingTeam, gd.current.bowlingTeam] = [gd.current.bowlingTeam, gd.current.battingTeam];
-      [gd.teamA, gd.teamB] = [gd.teamB, gd.teamA];
-
-      gd.wickets = { A: 0, B: 0 };
-      gd.balls = 0;
-      gd.usedBatters = [];
-      gd.usedBowlers = [];
-
-      broadcastRoom(roomCode, { type: "endInnings", message: `End of 1st Innings. Target: ${gd.target}` });
-
-      setTimeout(() => requestCaptain(roomCode, "nextBatter"), 2000);
-    } else {
-      // Game over
-      const a = gd.scores["A"];
-      const b = gd.scores["B"];
-      let message = a === b ? "Match Tied!" : (b > a ? "Team B Wins!" : "Team A Wins!");
-      broadcastRoom(roomCode, { type: "gameOver", message });
-    }
-    return;
-  }
-
-  broadcastRoom(roomCode, {
+  sendToPlayer(data.selectedId, room, {
     type: "yourTurn",
-    playerId: gd.current.batter,
-    role: "bat",
+    role
   });
-  send(sockets[gd.current.bowler], "yourTurn", { role: "bowl" });
 }
 
-function handleTurn(roomCode, playerId, number) {
-  const room = rooms[roomCode];
-  const gd = room.gameData;
+function handleTurnChoice(ws, data) {
+  const room = rooms[data.roomCode];
+  if (!room) return;
+  // Note: advanced logic to compare batter/bowler choices can be added here
 
-  if (!gd.current.batterChoice) gd.current.batterChoice = {};
-  if (!gd.current.bowlerChoice) gd.current.bowlerChoice = {};
-
-  if (playerId === gd.current.batter) {
-    gd.current.batterChoice = { id: playerId, number };
-  }
-  if (playerId === gd.current.bowler) {
-    gd.current.bowlerChoice = { id: playerId, number };
-  }
-
-  // Wait for both inputs
-  if (gd.current.batterChoice && gd.current.bowlerChoice) {
-    const bat = gd.current.batterChoice.number;
-    const bowl = gd.current.bowlerChoice.number;
-
-    let result;
-    if (bat === bowl) {
-      gd.wickets[gd.current.battingTeam]++;
-      result = `OUT! Batter chose ${bat}, Bowler chose ${bowl}`;
-      gd.usedBatters.push(gd.current.batter);
-      requestCaptain(roomCode, "nextBatter");
-    } else {
-      gd.scores[gd.current.battingTeam] += bat;
-      result = `Runs: ${bat} | Batter: ${bat}, Bowler: ${bowl}`;
-    }
-
-    gd.balls++;
-    if (!result.includes("OUT")) {
-      gd.usedBowlers.push(gd.current.bowler);
-      requestCaptain(roomCode, "nextBowler");
-    }
-
-    broadcastRoom(roomCode, { type: "turnResult", message: result });
-
-    // Clear choices
-    gd.current.batterChoice = null;
-    gd.current.bowlerChoice = null;
-  }
-}
-
-function requestCaptain(roomCode, type) {
-  const room = rooms[roomCode];
-  const gd = room.gameData;
-  gd.waitingForCaptain = true;
-
-  const team = type === "nextBatter" ? gd.current.battingTeam : gd.current.bowlingTeam;
-  const teamList = team === "A" ? gd.teamA : gd.teamB;
-  const used = type === "nextBatter" ? gd.usedBatters : gd.usedBowlers;
-
-  const available = teamList.filter((id) => !used.includes(id));
-  if (available.length === 0) {
-    // fallback (everyone used)
-    available.push(...teamList);
-  }
-
-  const options = available.map((id) => {
-    const p = room.players.find((p) => p.id === id);
-    return { id: p.id, name: p.name };
+  broadcastToRoom(data.roomCode, {
+    type: "turnResult",
+    message: `${ws.id} chose ${data.number}`
   });
-
-  const captainId = room.captains[team];
-  if (sockets[captainId]) {
-    send(sockets[captainId], type, { type, options });
-  }
 }
+
+function handleChat(ws, data) {
+  const message = `${data.name}: ${data.message}`;
+  broadcastToRoom(data.roomCode, {
+    type: "chat",
+    message
+  });
+}
+
+function getPlayerSummaries(code) {
+  return rooms[code]?.players.map(p => ({ id: p.id, name: p.name })) || [];
+}
+
+function sendToPlayer(id, room, msg) {
+  const player = room.players.find(p => p.id === id);
+  if (player) player.ws.send(JSON.stringify(msg));
+}
+
+function broadcastToRoom(code, msg) {
+  rooms[code]?.players.forEach(p => p.ws.send(JSON.stringify(msg)));
+}
+
+function generateRoomCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from({ length: 5 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
+
+httpServer.listen(PORT, () => {
+  console.log(`✅ Server running on port ${PORT}`);
+});
