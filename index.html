@@ -13,7 +13,6 @@
     <h1 class="text-3xl font-bold text-center text-blue-400">🎮 Hand Cricket Multiplayer</h1>
     <input id="playerName" type="text" placeholder="Enter your name"
       class="w-full p-3 rounded bg-gray-800 text-white focus:outline-none border border-blue-500" />
-    
     <div class="flex gap-4">
       <button onclick="showCreateRoom()" class="flex-1 p-3 bg-green-600 rounded hover:bg-green-700">Create Game</button>
       <button onclick="showJoinRoom()" class="flex-1 p-3 bg-blue-600 rounded hover:bg-blue-700">Join Game</button>
@@ -23,24 +22,14 @@
   <!-- 🔷 CREATE ROOM SCREEN -->
   <div id="createRoomScreen" class="hidden w-full max-w-md space-y-4">
     <h2 class="text-xl font-semibold text-green-400">Create Game Room</h2>
-
-    <!-- Player Name Reused -->
-    <!-- Game Mode -->
-    <label class="text-white block">Select Game Mode</label>
     <select id="gameMode" class="w-full p-2 bg-gray-800 border border-green-400 rounded">
       <option value="1v1">1 vs 1</option>
-      <option value="2v2">2 vs 2</option>
-      <option value="3v3">3 vs 3</option>
-      <option value="4v4">4 vs 4</option>
-      <option value="tournament-knockout">Tournament (Knockout)</option>
-      <option value="tournament-league">Tournament (League)</option>
+      <option value="team">Team vs Team</option>
+      <option value="tournament">Tournament</option>
     </select>
 
-    <!-- Overs Dropdown -->
-    <label for="oversSelect" class="text-white block mt-4">Select Overs</label>
-    <select id="oversSelect" class="w-full mt-1 p-2 rounded text-black">
-      <!-- JS will populate -->
-    </select>
+    <label for="overs" class="block mt-2 text-white">Select Overs</label>
+    <select id="overs" class="w-full mt-1 p-2 rounded text-black bg-white"></select>
 
     <button onclick="createRoom()" class="w-full p-3 bg-green-600 rounded hover:bg-green-700">Create Room</button>
     <button onclick="backToHome()" class="w-full p-2 text-sm text-gray-300 hover:text-white">← Back</button>
@@ -49,10 +38,8 @@
   <!-- 🔷 JOIN ROOM SCREEN -->
   <div id="joinRoomScreen" class="hidden w-full max-w-md space-y-4">
     <h2 class="text-xl font-semibold text-blue-400">Join Game Room</h2>
-
     <input id="joinRoomCode" type="text" placeholder="Enter Room Code"
       class="w-full p-3 rounded bg-gray-800 border border-blue-500" />
-
     <button onclick="joinRoom()" class="w-full p-3 bg-blue-600 rounded hover:bg-blue-700">Join Room</button>
     <button onclick="backToHome()" class="w-full p-2 text-sm text-gray-300 hover:text-white">← Back</button>
   </div>
@@ -60,11 +47,8 @@
   <!-- 🔷 LOBBY SCREEN -->
   <div id="lobbyScreen" class="hidden w-full max-w-2xl space-y-4">
     <h2 class="text-2xl font-bold text-yellow-400">🏏 Game Lobby</h2>
-    <div id="roomCodeDisplay" class="text-sm text-gray-300">Room Code: <span class="font-mono" id="roomCodeText"></span></div>
-
-    <div id="playerList" class="bg-gray-800 p-4 rounded border border-yellow-500 space-y-2">
-      <!-- Player list will be rendered -->
-    </div>
+    <div class="text-sm text-gray-300">Room Code: <span id="roomCodeText" class="font-mono"></span></div>
+    <div id="playerList" class="bg-gray-800 p-4 rounded border border-yellow-500 space-y-2"></div>
 
     <div id="captainSelector" class="hidden space-y-2">
       <label class="text-sm text-gray-300">Choose Captain for Team A:</label>
@@ -73,31 +57,30 @@
       <select id="captainTeamB" class="w-full bg-gray-700 rounded p-2"></select>
     </div>
 
-    <button onclick="startGame()" id="startGameBtn" class="w-full p-3 bg-yellow-500 rounded hover:bg-yellow-600 hidden">Start Game</button>
+    <button onclick="startGame()" id="startGameBtn" class="hidden w-full p-3 bg-yellow-500 rounded hover:bg-yellow-600">Start Game</button>
   </div>
 
   <!-- 🔷 GAME SCREEN -->
-  <div id="gameScreen" class="hidden w-full max-w-3xl">
+  <div id="gameScreen" class="hidden w-full max-w-3xl space-y-4">
     <div id="tossSection" class="space-y-4 text-center"></div>
-
     <div id="turnSection" class="space-y-2 hidden">
       <h3 class="text-xl font-bold" id="currentRoleText"></h3>
       <p id="gamePrompt" class="text-sm text-gray-300"></p>
       <div class="flex justify-center gap-2" id="numberButtons">
-        <!-- Number buttons will be created in client.js -->
+        <!-- Buttons will be injected -->
       </div>
     </div>
-
-    <div id="gameLog" class="mt-4 text-sm space-y-1"></div>
+    <div id="gameLog" class="mt-4 text-sm space-y-1 max-h-72 overflow-y-auto"></div>
   </div>
 
-  <!-- 🔷 CHAT BOX -->
+  <!-- 🔷 CHAT -->
   <div id="chatBox" class="hidden fixed bottom-0 left-0 right-0 bg-black/80 p-2">
     <input type="text" id="chatInput" placeholder="Type a message..."
       class="w-full p-2 bg-gray-700 text-white rounded" />
   </div>
 
-  <!-- 🔷 BASIC SCRIPT HOOKS -->
+  <!-- 🔷 SCRIPTS -->
+  <script src="client.js"></script>
   <script>
     function showCreateRoom() {
       document.getElementById("homeScreen").classList.add("hidden");
@@ -114,13 +97,16 @@
       document.getElementById("homeScreen").classList.remove("hidden");
     }
 
-    // Placeholder - actual logic in client.js
-    function createRoom() {}
-    function joinRoom() {}
-    function startGame() {}
+    // Inject Overs Dropdown
+    window.onload = function () {
+      const oversDropdown = document.getElementById("overs");
+      for (let i = 1; i <= 20; i++) {
+        const option = document.createElement("option");
+        option.value = i;
+        option.textContent = `${i} Over${i > 1 ? 's' : ''}`;
+        oversDropdown.appendChild(option);
+      }
+    };
   </script>
-
-  <!-- ✅ Load client.js -->
-  <script src="client.js"></script>
 </body>
 </html>
