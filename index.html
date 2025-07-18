@@ -30,11 +30,7 @@
       <option value="tournament">Tournament</option>
     </select>
 
-    <select id="oversSelect" class="w-full p-2 bg-gray-800 border border-green-400 rounded">
-      <option disabled selected>Select Overs</option>
-      ${[...Array(20)].map((_, i) => `<option value="${i + 1}">${i + 1} Over${i === 0 ? '' : 's'}</option>`).join('')}
-    </select>
-
+   <select id="overs"></select>
     <button onclick="createRoom()" class="w-full p-3 bg-green-600 rounded hover:bg-green-700">Create Room</button>
     <button onclick="backToHome()" class="w-full p-2 text-sm text-gray-300 hover:text-white">← Back</button>
   </div>
