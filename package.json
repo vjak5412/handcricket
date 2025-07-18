@@ -1,0 +1,16 @@
+{
+  "name": "hand-cricket-server",
+  "version": "1.0.0",
+  "description": "Multiplayer WebSocket backend for Hand Cricket game",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["hand-cricket", "multiplayer", "websocket", "render"],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "uuid": "^9.0.0",
+    "ws": "^8.16.0"
+  }
+}
