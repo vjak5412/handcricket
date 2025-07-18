@@ -5,7 +5,18 @@ const { createServer } = require("http");
 const { WebSocketServer } = require("ws");
 const { v4: uuidv4 } = require("uuid");
 
+const express = require("express");
+const { createServer } = require("http");
+const { WebSocketServer } = require("ws");
+const { v4: uuidv4 } = require("uuid");
+
 const app = express();
+
+// ✅ Health check route for Render
+app.get("/healthz", (req, res) => {
+  res.status(200).send("OK");
+});
+
 const httpServer = createServer(app);
 const wss = new WebSocketServer({ server: httpServer });
 
@@ -28,6 +39,12 @@ wss.on("connection", (ws) => {
     // Optional: handle player disconnects later
   });
 });
+
+// ✅ Start the server
+httpServer.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
+
 
 function handleMessage(ws, data) {
   switch (data.type) {
