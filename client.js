@@ -1,4 +1,5 @@
-const socket = new WebSocket("wss://your-render-app-name.onrender.com"); // Replace with your backend URL
+const socket = new WebSocket("wss://handcricket-gbz6.onrender.com");
+ // Replace with your backend URL
 
 let playerName = "";
 let roomCode = "";
