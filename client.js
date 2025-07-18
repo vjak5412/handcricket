@@ -1,293 +1,173 @@
-// ✅ UPDATED client.js with working game flow, admin-restricted captain selection, interactive toss
-
+// ✅ client.js — Handles UI, WebSocket events, and game logic for Hand Cricket
 const socket = new WebSocket("wss://handcricket-gbz6.onrender.com");
-
-let playerName = "";
-let roomCode = "";
 let playerId = "";
+let roomCode = "";
 let isAdmin = false;
-let gameMode = "";
-let overs = 1;
 let players = [];
-let isMyTurn = false;
 
-// 🔽 DYNAMIC OVERS DROPDOWN INIT
-window.addEventListener("DOMContentLoaded", () => {
-  const oversDropdown = document.getElementById("overs");
-  if (oversDropdown) {
-    for (let i = 1; i <= 20; i++) {
-      const opt = document.createElement("option");
-      opt.value = i;
-      opt.textContent = `${i} Over${i > 1 ? 's' : ''}`;
-      oversDropdown.appendChild(opt);
-    }
-  }
-});
+const nameInput = document.getElementById("playerName");
+const oversSelect = document.getElementById("overs");
+const gameModeSelect = document.getElementById("gameMode");
+const playerListDiv = document.getElementById("playerList");
+const roomCodeText = document.getElementById("roomCodeText");
+const captainSelector = document.getElementById("captainSelector");
+const startGameBtn = document.getElementById("startGameBtn");
+const captainTeamA = document.getElementById("captainTeamA");
+const captainTeamB = document.getElementById("captainTeamB");
+const gameLog = document.getElementById("gameLog");
+const numberButtons = document.getElementById("numberButtons");
+const turnSection = document.getElementById("turnSection");
+const currentRoleText = document.getElementById("currentRoleText");
 
-// 🔹 CREATE ROOM
 function createRoom() {
-  playerName = document.getElementById("playerName").value.trim();
-  gameMode = document.getElementById("gameMode").value;
-  overs = parseInt(document.getElementById("overs").value);
-  if (!playerName || !overs || !gameMode) return alert("Please fill all fields.");
-
-  socket.send(JSON.stringify({
-    type: "createRoom",
-    name: playerName,
-    gameMode,
-    overs
-  }));
+  const name = nameInput.value.trim();
+  const overs = parseInt(oversSelect.value);
+  const gameMode = gameModeSelect.value;
+  if (!name || !overs) return alert("Enter name and overs");
+  socket.send(JSON.stringify({ type: "createRoom", name, overs, gameMode }));
 }
 
-// 🔹 JOIN ROOM
 function joinRoom() {
-  playerName = document.getElementById("playerName").value.trim();
-  roomCode = document.getElementById("joinRoomCode").value.trim();
-  if (!playerName || !roomCode) return alert("Enter name and room code");
-
-  socket.send(JSON.stringify({
-    type: "joinRoom",
-    name: playerName,
-    roomCode
-  }));
-}
-
-// 🔹 SOCKET EVENTS
-socket.onmessage = function (event) {
-  const data = JSON.parse(event.data);
-
-  switch (data.type) {
-    case "roomCreated":
-      isAdmin = true;
-      roomCode = data.roomCode;
-      playerId = data.playerId;
-      players = data.players;
-      showLobby();
-      break;
-
-    case "joinedRoom":
-      isAdmin = false;
-      roomCode = data.roomCode;
-      playerId = data.playerId;
-      players = data.players;
-      showLobby();
-      break;
-
-    case "updatePlayers":
-      players = data.players;
-      updatePlayerList();
-      break;
-
-    case "startGame":
-      document.getElementById("lobbyScreen").classList.add("hidden");
-      document.getElementById("gameScreen").classList.remove("hidden");
-      break;
-
-    case "tossRequest":
-      showTossOptions(data);
-      break;
-
-    case "tossResult":
-      handleTossResult(data);
-      break;
-
-    case "chooseBatBowl":
-      showBatBowlChoice(data);
-      break;
-
-    case "yourTurn":
-      handleYourTurn(data);
-      break;
-
-    case "turnResult":
-      updateGameLog(data);
-      break;
-
-    case "nextBowler":
-    case "nextBatter":
-      showCaptainChoice(data);
-      break;
-
-    case "endInnings":
-      handleInningsEnd(data);
-      break;
-
-    case "gameOver":
-      showWinner(data);
-      break;
-
-    case "chat":
-      addToChat(data.message);
-      break;
-
-    case "error":
-      alert(data.message);
-      break;
-  }
-};
-
-function showLobby() {
-  document.querySelectorAll("div[id$='Screen']").forEach(div => div.classList.add("hidden"));
-  document.getElementById("lobbyScreen").classList.remove("hidden");
-  document.getElementById("roomCodeText").textContent = roomCode;
-  document.getElementById("startGameBtn").classList.toggle("hidden", !isAdmin);
-  document.getElementById("captainSelector").classList.toggle("hidden", !isAdmin);
-  updatePlayerList();
-}
-
-function updatePlayerList() {
-  const container = document.getElementById("playerList");
-  container.innerHTML = "";
-
-  players.forEach(p => {
-    const div = document.createElement("div");
-    div.className = "p-2 bg-gray-700 rounded";
-    div.textContent = `👤 ${p.name} ${p.id === playerId ? "(You)" : ""}`;
-    container.appendChild(div);
-
-    if (isAdmin) {
-      ["captainTeamA", "captainTeamB"].forEach(selId => {
-        const sel = document.getElementById(selId);
-        if (![...sel.options].some(opt => opt.value === p.id)) {
-          const opt = document.createElement("option");
-          opt.value = p.id;
-          opt.text = p.name;
-          sel.appendChild(opt);
-        }
-      });
-    }
-  });
+  const name = nameInput.value.trim();
+  const code = document.getElementById("joinRoomCode").value.trim().toUpperCase();
+  if (!name || !code) return alert("Enter name and room code");
+  socket.send(JSON.stringify({ type: "joinRoom", name, roomCode: code }));
 }
 
 function startGame() {
-  const captainA = document.getElementById("captainTeamA").value;
-  const captainB = document.getElementById("captainTeamB").value;
-  if (!captainA || !captainB) return alert("Select captains for both teams.");
-
-  socket.send(JSON.stringify({
-    type: "startGame",
-    roomCode,
-    captainA,
-    captainB
-  }));
+  const captainA = captainTeamA.value;
+  const captainB = captainTeamB.value;
+  if (!captainA || !captainB) return alert("Select captains");
+  socket.send(JSON.stringify({ type: "startGame", roomCode, captainA, captainB }));
 }
 
-function showTossOptions(data) {
-  const tossDiv = document.getElementById("tossSection");
-  tossDiv.innerHTML = `<h2 class="text-lg font-bold text-yellow-400">🪙 Toss Time</h2>
-    <p>Choose Heads or Tails:</p>
-    <div class="flex gap-4 justify-center">
-      <button onclick="sendTossChoice('Heads')" class="bg-yellow-500 px-4 py-2 rounded">Heads</button>
-      <button onclick="sendTossChoice('Tails')" class="bg-yellow-500 px-4 py-2 rounded">Tails</button>
-    </div>`;
-}
+socket.addEventListener("message", (event) => {
+  const msg = JSON.parse(event.data);
 
-function sendTossChoice(choice) {
-  socket.send(JSON.stringify({
-    type: "tossChoice",
-    roomCode,
-    choice
-  }));
-  document.getElementById("tossSection").innerHTML = "Waiting for result...";
-}
+  switch (msg.type) {
+    case "roomCreated": {
+      roomCode = msg.roomCode;
+      playerId = msg.playerId;
+      players = msg.players;
+      isAdmin = true;
+      showScreen("lobbyScreen");
+      roomCodeText.textContent = roomCode;
+      renderPlayerList();
+      showAdminControls();
+      break;
+    }
 
-function handleTossResult(data) {
-  const tossDiv = document.getElementById("tossSection");
-  tossDiv.innerHTML = `<h2 class="text-lg font-bold">🪙 Toss Result</h2><p>${data.message}</p>`;
-}
+    case "joinedRoom": {
+      roomCode = msg.roomCode;
+      playerId = msg.playerId;
+      players = msg.players;
+      isAdmin = false;
+      showScreen("lobbyScreen");
+      roomCodeText.textContent = roomCode;
+      renderPlayerList();
+      break;
+    }
 
-function showBatBowlChoice(data) {
-  const tossDiv = document.getElementById("tossSection");
-  tossDiv.innerHTML += `<p>Choose to Bat or Bowl:</p>
-    <div class="flex gap-4 justify-center">
-      <button onclick="chooseBatBowl('bat')" class="bg-blue-500 px-4 py-2 rounded">Bat</button>
-      <button onclick="chooseBatBowl('bowl')" class="bg-blue-500 px-4 py-2 rounded">Bowl</button>
-    </div>`;
-}
+    case "updatePlayers": {
+      players = msg.players;
+      renderPlayerList();
+      break;
+    }
 
-function chooseBatBowl(decision) {
-  socket.send(JSON.stringify({
-    type: "batBowlChoice",
-    roomCode,
-    decision
-  }));
-  document.getElementById("tossSection").innerHTML = "Preparing match...";
-}
+    case "startGame": {
+      showScreen("gameScreen");
+      break;
+    }
 
-function handleYourTurn(data) {
-  isMyTurn = true;
-  const turnSection = document.getElementById("turnSection");
-  turnSection.classList.remove("hidden");
-  document.getElementById("currentRoleText").textContent = data.role === "bat" ? "You're Batting!" : "You're Bowling!";
-  document.getElementById("gamePrompt").textContent = "Pick a number (1–6)";
-}
+    case "toss": {
+      document.getElementById("tossSection").innerHTML = `<div class='text-xl'>${msg.message}</div>`;
+      break;
+    }
 
-function selectNumber(n) {
-  if (!isMyTurn) return;
-  socket.send(JSON.stringify({ type: "turnChoice", roomCode, number: n }));
-  isMyTurn = false;
-  document.getElementById("turnSection").classList.add("hidden");
-}
+    case "nextBatter":
+    case "nextBowler": {
+      if (!msg.options || msg.options.length === 0) return;
+      const role = msg.type === "nextBatter" ? "Next Batter" : "Next Bowler";
+      const choice = prompt(`${role}: ${msg.options.map(p => p.name).join(", ")}`);
+      const selected = msg.options.find(p => p.name === choice);
+      if (selected) {
+        socket.send(JSON.stringify({ type: msg.type, roomCode, selectedId: selected.id }));
+      }
+      break;
+    }
 
-function updateGameLog(data) {
-  const log = document.getElementById("gameLog");
-  const entry = document.createElement("div");
-  entry.textContent = data.message;
-  log.appendChild(entry);
-  log.scrollTop = log.scrollHeight;
-}
+    case "yourTurn": {
+      const { role } = msg;
+      currentRoleText.textContent = role === "bat" ? "Your Turn to Bat" : "Your Turn to Bowl";
+      turnSection.classList.remove("hidden");
+      numberButtons.innerHTML = "";
+      [1, 2, 3, 4, 5, 6].forEach(n => {
+        const btn = document.createElement("button");
+        btn.textContent = n;
+        btn.className = "bg-blue-600 px-4 py-2 rounded hover:bg-blue-700";
+        btn.onclick = () => {
+          socket.send(JSON.stringify({ type: "turnChoice", roomCode, number: n }));
+          turnSection.classList.add("hidden");
+        };
+        numberButtons.appendChild(btn);
+      });
+      break;
+    }
 
-function showCaptainChoice(data) {
-  const turnSection = document.getElementById("turnSection");
-  turnSection.classList.remove("hidden");
-  document.getElementById("currentRoleText").textContent = "🧑‍✈️ Captain Decision";
-  document.getElementById("gamePrompt").innerHTML = `Choose the next ${data.type === "nextBowler" ? "Bowler" : "Batter"}:`;
+    case "turnResult": {
+      gameLog.innerHTML += `<div>${msg.message}</div>`;
+      gameLog.scrollTop = gameLog.scrollHeight;
+      break;
+    }
 
-  const container = document.createElement("div");
-  container.className = "flex gap-2 justify-center mt-2";
+    case "endInnings": {
+      gameLog.innerHTML += `<div class='text-yellow-300'>${msg.message}</div>`;
+      break;
+    }
 
-  data.options.forEach(player => {
-    const btn = document.createElement("button");
-    btn.className = "bg-purple-600 px-3 py-1 rounded";
-    btn.textContent = player.name;
-    btn.onclick = () => {
-      socket.send(JSON.stringify({
-        type: data.type,
-        roomCode,
-        selectedId: player.id
-      }));
-      turnSection.classList.add("hidden");
-    };
-    container.appendChild(btn);
-  });
+    case "gameOver": {
+      gameLog.innerHTML += `<div class='text-green-400 font-bold'>${msg.message}</div>`;
+      break;
+    }
 
-  turnSection.appendChild(container);
-}
-
-function handleInningsEnd(data) {
-  const log = document.getElementById("gameLog");
-  const entry = document.createElement("div");
-  entry.innerHTML = `<hr class="my-2"/><strong>${data.message}</strong>`;
-  log.appendChild(entry);
-}
-
-function showWinner(data) {
-  document.getElementById("turnSection").classList.add("hidden");
-  document.getElementById("gameLog").innerHTML += `<div class="text-xl font-bold text-green-400 mt-4">${data.message}</div>`;
-}
-
-document.getElementById("chatInput")?.addEventListener("keydown", function (e) {
-  if (e.key === "Enter") {
-    const message = e.target.value.trim();
-    if (message) {
-      socket.send(JSON.stringify({ type: "chat", roomCode, message, name: playerName }));
-      e.target.value = "";
+    case "chat": {
+      gameLog.innerHTML += `<div class='text-gray-400'>${msg.message}</div>`;
+      break;
     }
   }
 });
 
-function addToChat(msg) {
-  const chatBox = document.getElementById("chatBox");
-  chatBox.classList.remove("hidden");
-  chatBox.innerHTML += `<div class="text-sm">${msg}</div>`;
+function showScreen(id) {
+  document.querySelectorAll("div[id$='Screen']").forEach(div => div.classList.add("hidden"));
+  document.getElementById(id).classList.remove("hidden");
+  if (id === "chatBox") document.getElementById("chatBox").classList.remove("hidden");
 }
+
+function renderPlayerList() {
+  playerListDiv.innerHTML = players.map(p => `
+    <div class="flex justify-between">
+      <span>${p.name}</span>
+      ${p.id === playerId ? '<span class="text-green-400">(You)</span>' : ""}
+    </div>
+  `).join("");
+  if (isAdmin) {
+    captainSelector.classList.remove("hidden");
+    startGameBtn.classList.remove("hidden");
+    captainTeamA.innerHTML = players.map(p => `<option value="${p.id}">${p.name}</option>`).join("");
+    captainTeamB.innerHTML = players.map(p => `<option value="${p.id}">${p.name}</option>`).join("");
+  }
+}
+
+// 💬 Chat handler
+const chatInput = document.getElementById("chatInput");
+chatInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && chatInput.value.trim()) {
+    socket.send(JSON.stringify({
+      type: "chat",
+      name: nameInput.value.trim(),
+      message: chatInput.value.trim(),
+      roomCode
+    }));
+    chatInput.value = "";
+  }
+});
