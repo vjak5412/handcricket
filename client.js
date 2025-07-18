@@ -26,6 +26,233 @@ function createRoom() {
   if (!name || !overs) return alert("Enter name and overs");
   socket.send(JSON.stringify({ type: "createRoom", name, overs, gameMode }));
 }
+// ✅ client.js - Complete WebSocket + UI logic for Hand Cricket
+
+const socket = new WebSocket("wss://handcricket-gbz6.onrender.com");
+
+let playerId = "";
+let playerName = "";
+let roomCode = "";
+let isAdmin = false;
+let players = [];
+let overs = 1;
+
+// ===============================
+// 🌐 WebSocket Message Handler
+// ===============================
+socket.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  switch (data.type) {
+    case "roomCreated":
+      handleRoomCreated(data);
+      break;
+    case "joinedRoom":
+      handleJoinedRoom(data);
+      break;
+    case "updatePlayers":
+      updateLobby(data.players);
+      break;
+    case "toss":
+      showToss(data.message);
+      break;
+    case "yourTurn":
+      showYourTurn(data);
+      break;
+    case "turnResult":
+      logMessage(data.message);
+      break;
+    case "chat":
+      addChatMessage(data.message);
+      break;
+    case "error":
+      alert(data.message);
+      break;
+  }
+};
+
+// ===============================
+// ✅ UI Transitions
+// ===============================
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(div => div.classList.add("hidden"));
+  document.getElementById(id).classList.remove("hidden");
+}
+
+function logMessage(msg) {
+  const log = document.getElementById("gameLog");
+  const div = document.createElement("div");
+  div.textContent = msg;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+function addChatMessage(msg) {
+  const chat = document.getElementById("chatBox");
+  chat.innerHTML += `<div class="text-sm">${msg}</div>`;
+}
+
+// ===============================
+// 🛠 Utility
+// ===============================
+function fillOversDropdown() {
+  const sel = document.getElementById("oversSelect");
+  for (let i = 1; i <= 20; i++) {
+    const opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = `${i} Over${i > 1 ? "s" : ""}`;
+    sel.appendChild(opt);
+  }
+}
+
+// ===============================
+// 🧠 WebSocket Event Responses
+// ===============================
+function handleRoomCreated(data) {
+  playerId = data.playerId;
+  roomCode = data.roomCode;
+  players = data.players;
+  isAdmin = true;
+  updateLobby(players);
+  showScreen("lobbyScreen");
+  document.getElementById("roomCodeText").textContent = roomCode;
+  document.getElementById("startGameBtn").classList.remove("hidden");
+  document.getElementById("captainSelectors").classList.remove("hidden");
+}
+
+function handleJoinedRoom(data) {
+  playerId = data.playerId;
+  roomCode = data.roomCode;
+  players = data.players;
+  isAdmin = false;
+  updateLobby(players);
+  showScreen("lobbyScreen");
+  document.getElementById("roomCodeText").textContent = roomCode;
+}
+
+function updateLobby(playersList) {
+  players = playersList;
+  const container = document.getElementById("playerList");
+  container.innerHTML = "";
+  const capA = document.getElementById("captainA");
+  const capB = document.getElementById("captainB");
+  capA.innerHTML = "<option value=''>--Select--</option>";
+  capB.innerHTML = "<option value=''>--Select--</option>";
+
+  players.forEach(p => {
+    const div = document.createElement("div");
+    div.textContent = `${p.name}${p.id === playerId ? " (You)" : ""}`;
+    container.appendChild(div);
+
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.name;
+    capA.appendChild(opt.cloneNode(true));
+    capB.appendChild(opt);
+  });
+}
+
+function showToss(message) {
+  showScreen("gameScreen");
+  document.getElementById("tossInfo").textContent = message;
+}
+
+function showYourTurn(data) {
+  const roleText = document.getElementById("turnRole");
+  const prompt = document.getElementById("gamePrompt");
+  const buttons = document.getElementById("turnButtons");
+
+  buttons.innerHTML = "";
+  for (let i = 1; i <= 6; i++) {
+    const btn = document.createElement("button");
+    btn.className = "bg-blue-600 rounded px-3 py-1";
+    btn.textContent = i;
+    btn.onclick = () => {
+      socket.send(JSON.stringify({
+        type: "turnChoice",
+        roomCode,
+        number: i
+      }));
+      buttons.innerHTML = "<p class='text-yellow-400'>Waiting for opponent...</p>";
+    };
+    buttons.appendChild(btn);
+  }
+
+  roleText.textContent = data.role === "bat" ? "You're Batting" : "You're Bowling";
+  prompt.textContent = "Pick a number (1–6)";
+}
+
+// ===============================
+// 🎮 Game Control Actions
+// ===============================
+function createRoom() {
+  playerName = document.getElementById("playerName").value.trim();
+  overs = parseInt(document.getElementById("oversSelect").value);
+  const gameMode = document.getElementById("gameMode").value;
+
+  if (!playerName || !overs || !gameMode) {
+    alert("Please enter name, game mode, and overs");
+    return;
+  }
+
+  socket.send(JSON.stringify({
+    type: "createRoom",
+    name: playerName,
+    gameMode,
+    overs
+  }));
+}
+
+function joinRoom() {
+  playerName = document.getElementById("playerName").value.trim();
+  roomCode = document.getElementById("joinRoomCode").value.trim().toUpperCase();
+  if (!playerName || !roomCode) return alert("Enter name and room code");
+
+  socket.send(JSON.stringify({
+    type: "joinRoom",
+    name: playerName,
+    roomCode
+  }));
+}
+
+function startGame() {
+  const captainA = document.getElementById("captainA").value;
+  const captainB = document.getElementById("captainB").value;
+
+  if (!captainA || !captainB) return alert("Select both captains");
+
+  socket.send(JSON.stringify({
+    type: "startGame",
+    roomCode,
+    captainA,
+    captainB
+  }));
+}
+
+// ===============================
+// 💬 Chat Event Listener
+// ===============================
+document.getElementById("chatInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    const message = e.target.value.trim();
+    if (message) {
+      socket.send(JSON.stringify({
+        type: "chat",
+        roomCode,
+        message,
+        name: playerName
+      }));
+      e.target.value = "";
+    }
+  }
+});
+
+// ===============================
+// 🏁 On Page Load
+// ===============================
+window.onload = () => {
+  fillOversDropdown();
+  showScreen("homeScreen");
+};
 
 function joinRoom() {
   const name = nameInput.value.trim();
