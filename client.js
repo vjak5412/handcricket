@@ -1,5 +1,4 @@
-const socket = new WebSocket("wss://handcricket-gbz6.onrender.com");
- // Replace with your backend URL
+const socket = new WebSocket("wss://handcricket-gbz6.onrender.com"); // Replace with your backend URL
 
 let playerName = "";
 let roomCode = "";
@@ -16,29 +15,33 @@ function createRoom() {
   gameMode = document.getElementById("gameMode").value;
   overs = parseInt(document.getElementById("oversSelect").value);
 
-  if (!playerName || !overs || !gameMode) return alert("Please fill all fields.");
+  if (!playerName || !overs || !gameMode) {
+    alert("Please fill all fields.");
+    return;
+  }
 
-  const msg = {
+  socket.send(JSON.stringify({
     type: "createRoom",
     name: playerName,
     gameMode,
     overs,
-  };
-  socket.send(JSON.stringify(msg));
+  }));
 }
 
 function joinRoom() {
   playerName = document.getElementById("playerName").value.trim();
   roomCode = document.getElementById("joinRoomCode").value.trim();
 
-  if (!playerName || !roomCode) return alert("Enter name and room code");
+  if (!playerName || !roomCode) {
+    alert("Enter name and room code");
+    return;
+  }
 
-  const msg = {
+  socket.send(JSON.stringify({
     type: "joinRoom",
     name: playerName,
     roomCode,
-  };
-  socket.send(JSON.stringify(msg));
+  }));
 }
 
 // 🧠 SOCKET LISTENER
@@ -113,9 +116,10 @@ function showLobby() {
   document.getElementById("roomCodeText").textContent = roomCode;
 
   if (isAdmin) {
-    document.getElementById("captainSelector").classList.remove("hidden");
-    document.getElementById("startGameBtn").classList.remove("hidden");
+    document.getElementById("captainSelector")?.classList.remove("hidden");
+    document.getElementById("startGameBtn")?.classList.remove("hidden");
   }
+
   updatePlayerList();
 }
 
@@ -129,11 +133,11 @@ function updatePlayerList() {
     div.textContent = `👤 ${p.name} ${p.id === playerId ? "(You)" : ""}`;
     container.appendChild(div);
 
-    // Populate captain selector
+    // Populate captain dropdowns if admin
     if (isAdmin) {
       ["captainTeamA", "captainTeamB"].forEach(selId => {
         const sel = document.getElementById(selId);
-        if (![...sel.options].some(opt => opt.value === p.id)) {
+        if (sel && ![...sel.options].some(opt => opt.value === p.id)) {
           const opt = document.createElement("option");
           opt.value = p.id;
           opt.text = p.name;
@@ -144,21 +148,22 @@ function updatePlayerList() {
   });
 }
 
-// 🚀 Start Game (Admin only)
+// 🚀 Start Game
 function startGame() {
   const captainA = document.getElementById("captainTeamA").value;
   const captainB = document.getElementById("captainTeamB").value;
 
-  if (!captainA || !captainB) return alert("Select captains for both teams.");
+  if (!captainA || !captainB) {
+    alert("Select captains for both teams.");
+    return;
+  }
 
-  const msg = {
+  socket.send(JSON.stringify({
     type: "startGame",
     roomCode,
     captainA,
     captainB,
-  };
-
-  socket.send(JSON.stringify(msg));
+  }));
 }
 
 // 🧿 TOSS UI
@@ -176,8 +181,7 @@ function handleYourTurn(data) {
   const turnSection = document.getElementById("turnSection");
   turnSection.classList.remove("hidden");
 
-  const role = data.role === "bat" ? "You're Batting!" : "You're Bowling!";
-  document.getElementById("currentRoleText").textContent = role;
+  document.getElementById("currentRoleText").textContent = data.role === "bat" ? "You're Batting!" : "You're Bowling!";
   document.getElementById("gamePrompt").textContent = "Pick a number (1–6)";
 }
 
@@ -187,7 +191,7 @@ function selectNumber(n) {
   socket.send(JSON.stringify({
     type: "turnChoice",
     roomCode,
-    number: n
+    number: n,
   }));
 
   isMyTurn = false;
@@ -202,7 +206,7 @@ function updateGameLog(data) {
   log.scrollTop = log.scrollHeight;
 }
 
-// 🧑‍✈️ CAPTAIN DECISIONS
+// 🧑‍✈️ CAPTAIN DECISION
 function showCaptainChoice(data) {
   const turnSection = document.getElementById("turnSection");
   turnSection.classList.remove("hidden");
@@ -220,7 +224,7 @@ function showCaptainChoice(data) {
       socket.send(JSON.stringify({
         type: data.type,
         roomCode,
-        selectedId: player.id
+        selectedId: player.id,
       }));
       turnSection.classList.add("hidden");
     };
@@ -238,13 +242,13 @@ function handleInningsEnd(data) {
   log.appendChild(entry);
 }
 
-// 🏆 WINNER
+// 🏆 SHOW WINNER
 function showWinner(data) {
   document.getElementById("turnSection").classList.add("hidden");
   document.getElementById("gameLog").innerHTML += `<div class="text-xl font-bold text-green-400 mt-4">${data.message}</div>`;
 }
 
-// 💬 CHAT (optional)
+// 💬 CHAT
 document.getElementById("chatInput")?.addEventListener("keydown", function (e) {
   if (e.key === "Enter") {
     const message = e.target.value.trim();
@@ -260,3 +264,16 @@ function addToChat(msg) {
   chatBox.classList.remove("hidden");
   chatBox.innerHTML += `<div class="text-sm">${msg}</div>`;
 }
+
+// 🕹️ OVERS DROPDOWN RENDERING (DYNAMIC)
+document.addEventListener("DOMContentLoaded", () => {
+  const oversDropdown = document.getElementById("oversSelect");
+  if (oversDropdown) {
+    for (let i = 1; i <= 20; i++) {
+      const option = document.createElement("option");
+      option.value = i;
+      option.textContent = `${i} Over${i > 1 ? 's' : ''}`;
+      oversDropdown.appendChild(option);
+    }
+  }
+});
