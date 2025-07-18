@@ -1,7 +1,7 @@
-// ✅ WebSocket connection
+// ✅ UPDATED client.js with working game flow, admin-restricted captain selection, interactive toss
+
 const socket = new WebSocket("wss://handcricket-gbz6.onrender.com");
 
-// ✅ Game state variables
 let playerName = "";
 let roomCode = "";
 let playerId = "";
@@ -11,121 +11,127 @@ let overs = 1;
 let players = [];
 let isMyTurn = false;
 
-// ✅ DOM ready: populate overs dropdown and setup
+// 🔽 DYNAMIC OVERS DROPDOWN INIT
 window.addEventListener("DOMContentLoaded", () => {
-  const oversDropdown = document.getElementById("oversSelect");
+  const oversDropdown = document.getElementById("overs");
   if (oversDropdown) {
     for (let i = 1; i <= 20; i++) {
-      const option = document.createElement("option");
-      option.value = i;
-      option.textContent = `${i} Over${i > 1 ? 's' : ''}`;
-      oversDropdown.appendChild(option);
+      const opt = document.createElement("option");
+      opt.value = i;
+      opt.textContent = `${i} Over${i > 1 ? 's' : ''}`;
+      oversDropdown.appendChild(opt);
     }
   }
 });
 
-// ✅ Create Room
+// 🔹 CREATE ROOM
 function createRoom() {
   playerName = document.getElementById("playerName").value.trim();
   gameMode = document.getElementById("gameMode").value;
-  overs = parseInt(document.getElementById("oversSelect").value);
+  overs = parseInt(document.getElementById("overs").value);
+  if (!playerName || !overs || !gameMode) return alert("Please fill all fields.");
 
-  if (!playerName || !overs || !gameMode) {
-    alert("Please fill all fields.");
-    return;
-  }
-
-  const msg = {
+  socket.send(JSON.stringify({
     type: "createRoom",
     name: playerName,
     gameMode,
-    overs,
-  };
-  socket.send(JSON.stringify(msg));
+    overs
+  }));
 }
 
-// ✅ Join Room
+// 🔹 JOIN ROOM
 function joinRoom() {
   playerName = document.getElementById("playerName").value.trim();
   roomCode = document.getElementById("joinRoomCode").value.trim();
+  if (!playerName || !roomCode) return alert("Enter name and room code");
 
-  if (!playerName || !roomCode) {
-    alert("Enter name and room code");
-    return;
-  }
-
-  const msg = {
+  socket.send(JSON.stringify({
     type: "joinRoom",
     name: playerName,
-    roomCode,
-  };
-  socket.send(JSON.stringify(msg));
+    roomCode
+  }));
 }
 
-// ✅ Socket message listener
+// 🔹 SOCKET EVENTS
 socket.onmessage = function (event) {
   const data = JSON.parse(event.data);
+
   switch (data.type) {
     case "roomCreated":
-      handleRoomJoin(data, true);
+      isAdmin = true;
+      roomCode = data.roomCode;
+      playerId = data.playerId;
+      players = data.players;
+      showLobby();
       break;
+
     case "joinedRoom":
-      handleRoomJoin(data, false);
+      isAdmin = false;
+      roomCode = data.roomCode;
+      playerId = data.playerId;
+      players = data.players;
+      showLobby();
       break;
+
     case "updatePlayers":
       players = data.players;
       updatePlayerList();
       break;
+
     case "startGame":
       document.getElementById("lobbyScreen").classList.add("hidden");
       document.getElementById("gameScreen").classList.remove("hidden");
       break;
-    case "toss":
-      showTossScreen(data);
+
+    case "tossRequest":
+      showTossOptions(data);
       break;
+
+    case "tossResult":
+      handleTossResult(data);
+      break;
+
+    case "chooseBatBowl":
+      showBatBowlChoice(data);
+      break;
+
     case "yourTurn":
       handleYourTurn(data);
       break;
+
     case "turnResult":
       updateGameLog(data);
       break;
+
     case "nextBowler":
     case "nextBatter":
       showCaptainChoice(data);
       break;
+
     case "endInnings":
       handleInningsEnd(data);
       break;
+
     case "gameOver":
       showWinner(data);
       break;
+
     case "chat":
       addToChat(data.message);
       break;
+
     case "error":
       alert(data.message);
       break;
   }
 };
 
-function handleRoomJoin(data, admin) {
-  roomCode = data.roomCode;
-  isAdmin = admin;
-  playerId = data.playerId;
-  players = data.players;
-  showLobby();
-}
-
-// ✅ Lobby UI
 function showLobby() {
   document.querySelectorAll("div[id$='Screen']").forEach(div => div.classList.add("hidden"));
   document.getElementById("lobbyScreen").classList.remove("hidden");
   document.getElementById("roomCodeText").textContent = roomCode;
-
-  if (isAdmin) {
-    document.getElementById("captainSelector").classList.remove("hidden");
-    document.getElementById("startGameBtn").classList.remove("hidden");
-  }
+  document.getElementById("startGameBtn").classList.toggle("hidden", !isAdmin);
+  document.getElementById("captainSelector").classList.toggle("hidden", !isAdmin);
   updatePlayerList();
 }
 
@@ -139,7 +145,6 @@ function updatePlayerList() {
     div.textContent = `👤 ${p.name} ${p.id === playerId ? "(You)" : ""}`;
     container.appendChild(div);
 
-    // Captains selector
     if (isAdmin) {
       ["captainTeamA", "captainTeamB"].forEach(selId => {
         const sel = document.getElementById(selId);
@@ -157,25 +162,56 @@ function updatePlayerList() {
 function startGame() {
   const captainA = document.getElementById("captainTeamA").value;
   const captainB = document.getElementById("captainTeamB").value;
-
   if (!captainA || !captainB) return alert("Select captains for both teams.");
 
-  const msg = {
+  socket.send(JSON.stringify({
     type: "startGame",
     roomCode,
     captainA,
-    captainB,
-  };
-
-  socket.send(JSON.stringify(msg));
+    captainB
+  }));
 }
 
-function showTossScreen(data) {
+function showTossOptions(data) {
   const tossDiv = document.getElementById("tossSection");
-  tossDiv.innerHTML = `
-    <h2 class="text-lg font-bold text-yellow-400">🪙 Toss Time</h2>
-    <p>${data.message}</p>
-  `;
+  tossDiv.innerHTML = `<h2 class="text-lg font-bold text-yellow-400">🪙 Toss Time</h2>
+    <p>Choose Heads or Tails:</p>
+    <div class="flex gap-4 justify-center">
+      <button onclick="sendTossChoice('Heads')" class="bg-yellow-500 px-4 py-2 rounded">Heads</button>
+      <button onclick="sendTossChoice('Tails')" class="bg-yellow-500 px-4 py-2 rounded">Tails</button>
+    </div>`;
+}
+
+function sendTossChoice(choice) {
+  socket.send(JSON.stringify({
+    type: "tossChoice",
+    roomCode,
+    choice
+  }));
+  document.getElementById("tossSection").innerHTML = "Waiting for result...";
+}
+
+function handleTossResult(data) {
+  const tossDiv = document.getElementById("tossSection");
+  tossDiv.innerHTML = `<h2 class="text-lg font-bold">🪙 Toss Result</h2><p>${data.message}</p>`;
+}
+
+function showBatBowlChoice(data) {
+  const tossDiv = document.getElementById("tossSection");
+  tossDiv.innerHTML += `<p>Choose to Bat or Bowl:</p>
+    <div class="flex gap-4 justify-center">
+      <button onclick="chooseBatBowl('bat')" class="bg-blue-500 px-4 py-2 rounded">Bat</button>
+      <button onclick="chooseBatBowl('bowl')" class="bg-blue-500 px-4 py-2 rounded">Bowl</button>
+    </div>`;
+}
+
+function chooseBatBowl(decision) {
+  socket.send(JSON.stringify({
+    type: "batBowlChoice",
+    roomCode,
+    decision
+  }));
+  document.getElementById("tossSection").innerHTML = "Preparing match...";
 }
 
 function handleYourTurn(data) {
@@ -184,16 +220,6 @@ function handleYourTurn(data) {
   turnSection.classList.remove("hidden");
   document.getElementById("currentRoleText").textContent = data.role === "bat" ? "You're Batting!" : "You're Bowling!";
   document.getElementById("gamePrompt").textContent = "Pick a number (1–6)";
-
-  const numContainer = document.getElementById("numberButtons");
-  numContainer.innerHTML = "";
-  [1, 2, 3, 4, 5, 6].forEach(n => {
-    const btn = document.createElement("button");
-    btn.className = "bg-blue-600 px-4 py-2 rounded hover:bg-blue-700";
-    btn.textContent = n;
-    btn.onclick = () => selectNumber(n);
-    numContainer.appendChild(btn);
-  });
 }
 
 function selectNumber(n) {
@@ -217,19 +243,25 @@ function showCaptainChoice(data) {
   document.getElementById("currentRoleText").textContent = "🧑‍✈️ Captain Decision";
   document.getElementById("gamePrompt").innerHTML = `Choose the next ${data.type === "nextBowler" ? "Bowler" : "Batter"}:`;
 
-  const container = document.getElementById("numberButtons");
-  container.innerHTML = "";
+  const container = document.createElement("div");
+  container.className = "flex gap-2 justify-center mt-2";
 
   data.options.forEach(player => {
     const btn = document.createElement("button");
     btn.className = "bg-purple-600 px-3 py-1 rounded";
     btn.textContent = player.name;
     btn.onclick = () => {
-      socket.send(JSON.stringify({ type: data.type, roomCode, selectedId: player.id }));
+      socket.send(JSON.stringify({
+        type: data.type,
+        roomCode,
+        selectedId: player.id
+      }));
       turnSection.classList.add("hidden");
     };
     container.appendChild(btn);
   });
+
+  turnSection.appendChild(container);
 }
 
 function handleInningsEnd(data) {
