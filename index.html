@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hand Cricket Online</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-4">
+
+  <!-- 🔷 HOME SCREEN -->
+  <div id="homeScreen" class="w-full max-w-md space-y-4">
+    <h1 class="text-3xl font-bold text-center text-blue-400">🎮 Hand Cricket Multiplayer</h1>
+    <input id="playerName" type="text" placeholder="Enter your name"
+      class="w-full p-3 rounded bg-gray-800 text-white focus:outline-none border border-blue-500" />
+    
+    <div class="flex gap-4">
+      <button onclick="showCreateRoom()" class="flex-1 p-3 bg-green-600 rounded hover:bg-green-700">Create Game</button>
+      <button onclick="showJoinRoom()" class="flex-1 p-3 bg-blue-600 rounded hover:bg-blue-700">Join Game</button>
+    </div>
+  </div>
+
+  <!-- 🔷 CREATE ROOM SCREEN -->
+  <div id="createRoomScreen" class="hidden w-full max-w-md space-y-4">
+    <h2 class="text-xl font-semibold text-green-400">Create Game Room</h2>
+
+    <select id="gameMode" class="w-full p-2 bg-gray-800 border border-green-400 rounded">
+      <option value="1v1">1 vs 1</option>
+      <option value="team">Team vs Team</option>
+      <option value="tournament">Tournament</option>
+    </select>
+
+    <select id="oversSelect" class="w-full p-2 bg-gray-800 border border-green-400 rounded">
+      <option disabled selected>Select Overs</option>
+      ${[...Array(20)].map((_, i) => `<option value="${i + 1}">${i + 1} Over${i === 0 ? '' : 's'}</option>`).join('')}
+    </select>
+
+    <button onclick="createRoom()" class="w-full p-3 bg-green-600 rounded hover:bg-green-700">Create Room</button>
+    <button onclick="backToHome()" class="w-full p-2 text-sm text-gray-300 hover:text-white">← Back</button>
+  </div>
+
+  <!-- 🔷 JOIN ROOM SCREEN -->
+  <div id="joinRoomScreen" class="hidden w-full max-w-md space-y-4">
+    <h2 class="text-xl font-semibold text-blue-400">Join Game Room</h2>
+
+    <input id="joinRoomCode" type="text" placeholder="Enter Room Code"
+      class="w-full p-3 rounded bg-gray-800 border border-blue-500" />
+
+    <button onclick="joinRoom()" class="w-full p-3 bg-blue-600 rounded hover:bg-blue-700">Join Room</button>
+    <button onclick="backToHome()" class="w-full p-2 text-sm text-gray-300 hover:text-white">← Back</button>
+  </div>
+
+  <!-- 🔷 LOBBY SCREEN -->
+  <div id="lobbyScreen" class="hidden w-full max-w-2xl space-y-4">
+    <h2 class="text-2xl font-bold text-yellow-400">🏏 Game Lobby</h2>
+    <div id="roomCodeDisplay" class="text-sm text-gray-300">Room Code: <span class="font-mono" id="roomCodeText"></span></div>
+
+    <div id="playerList" class="bg-gray-800 p-4 rounded border border-yellow-500 space-y-2">
+      <!-- Player names and team selections -->
+    </div>
+
+    <div id="captainSelector" class="hidden space-y-2">
+      <label class="text-sm text-gray-300">Choose Captain for Team A:</label>
+      <select id="captainTeamA" class="w-full bg-gray-700 rounded p-2"></select>
+      <label class="text-sm text-gray-300">Choose Captain for Team B:</label>
+      <select id="captainTeamB" class="w-full bg-gray-700 rounded p-2"></select>
+    </div>
+
+    <button onclick="startGame()" id="startGameBtn" class="w-full p-3 bg-yellow-500 rounded hover:bg-yellow-600">Start Game</button>
+  </div>
+
+  <!-- 🔷 GAME SCREEN -->
+  <div id="gameScreen" class="hidden w-full max-w-3xl">
+    <!-- Toss, gameplay, scoreboards, etc. will appear here -->
+  </div>
+
+  <!-- 🔷 CHAT + FEEDBACK -->
+  <div id="chatBox" class="hidden fixed bottom-0 left-0 right-0 bg-black/80 p-2">
+    <input type="text" id="chatInput" placeholder="Type a message..."
+      class="w-full p-2 bg-gray-700 text-white rounded" />
+  </div>
+
+  <!-- 🔷 SCRIPTS -->
+  <script>
+    function showCreateRoom() {
+      document.getElementById("homeScreen").classList.add("hidden");
+      document.getElementById("createRoomScreen").classList.remove("hidden");
+    }
+
+    function showJoinRoom() {
+      document.getElementById("homeScreen").classList.add("hidden");
+      document.getElementById("joinRoomScreen").classList.remove("hidden");
+    }
+
+    function backToHome() {
+      document.querySelectorAll("div[id$='Screen']").forEach(div => div.classList.add("hidden"));
+      document.getElementById("homeScreen").classList.remove("hidden");
+    }
+
+    function createRoom() {
+      // Placeholder (handled in client.js)
+    }
+
+    function joinRoom() {
+      // Placeholder (handled in client.js)
+    }
+
+    function startGame() {
+      // Placeholder (handled in client.js)
+    }
+  </script>
+</body>
+</html>
