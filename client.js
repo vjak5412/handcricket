@@ -155,3 +155,84 @@ function addToChat(msg) {
   chatBox.classList.remove("hidden");
   chatBox.innerHTML += `<div class="text-sm">${msg}</div>`;
 }
+let isMyTurn = false;
+
+function showTossScreen(data) {
+  const tossDiv = document.getElementById("tossSection");
+  tossDiv.innerHTML = `
+    <h2 class="text-lg font-bold text-yellow-400">🪙 Toss Time</h2>
+    <p>${data.message}</p>
+  `;
+}
+
+function handleYourTurn(data) {
+  isMyTurn = true;
+  const turnSection = document.getElementById("turnSection");
+  turnSection.classList.remove("hidden");
+
+  const role = data.role === "bat" ? "You're Batting!" : "You're Bowling!";
+  document.getElementById("currentRoleText").textContent = role;
+  document.getElementById("gamePrompt").textContent = "Pick a number (1–6)";
+}
+
+function selectNumber(n) {
+  if (!isMyTurn) return;
+
+  socket.send(JSON.stringify({
+    type: "turnChoice",
+    roomCode,
+    number: n
+  }));
+
+  isMyTurn = false;
+  document.getElementById("turnSection").classList.add("hidden");
+}
+
+function updateGameLog(data) {
+  const log = document.getElementById("gameLog");
+  const entry = document.createElement("div");
+  entry.textContent = data.message;
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+}
+
+function showCaptainChoice(data) {
+  const turnSection = document.getElementById("turnSection");
+  turnSection.classList.remove("hidden");
+  document.getElementById("currentRoleText").textContent = "🧑‍✈️ Captain Decision";
+
+  const gamePrompt = document.getElementById("gamePrompt");
+  gamePrompt.innerHTML = `Choose the next ${data.type === "nextBowler" ? "Bowler" : "Batter"}:`;
+
+  const container = document.createElement("div");
+  container.className = "flex gap-2 justify-center mt-2";
+
+  data.options.forEach(player => {
+    const btn = document.createElement("button");
+    btn.className = "bg-purple-600 px-3 py-1 rounded";
+    btn.textContent = player.name;
+    btn.onclick = () => {
+      socket.send(JSON.stringify({
+        type: data.type,
+        roomCode,
+        selectedId: player.id
+      }));
+      turnSection.classList.add("hidden");
+    };
+    container.appendChild(btn);
+  });
+
+  turnSection.appendChild(container);
+}
+
+function handleInningsEnd(data) {
+  const log = document.getElementById("gameLog");
+  const entry = document.createElement("div");
+  entry.innerHTML = `<hr class="my-2"/><strong>${data.message}</strong>`;
+  log.appendChild(entry);
+}
+
+function showWinner(data) {
+  document.getElementById("turnSection").classList.add("hidden");
+  document.getElementById("gameLog").innerHTML += `<div class="text-xl font-bold text-green-400 mt-4">${data.message}</div>`;
+}
